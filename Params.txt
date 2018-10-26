@@ -1,0 +1,6 @@
+endTime	0.041666667
+dt0	1.00E-10
+dtMax	0.002
+dhMax	0.1
+f	2
+c	0.5
