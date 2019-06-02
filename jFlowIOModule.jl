@@ -112,7 +112,7 @@ function ReadGridConnects()::Array{Connection, 1}
         for j = 1:numCellStart, i = 1:numPopulate
             cell1 = cellStart + (j-1)*stepCellStart + (i-1)*stepPopulate
             cell2 = cellStart + (j-1)*stepCellStart + i*stepPopulate
-            push!(connect, Connection(cell1, cell2, del1, del2, A, zConnect))           
+            push!(connect, Connection(cell1, cell2, del1, del2, A, zConnect, 0.0))           
         end
     end
     println("Read and assigned internal grid cell-to-cell connections.")
@@ -135,7 +135,7 @@ function ReadSpecConnects(connect::Array{Connection, 1})::Array{Connection, 1}
         for j = 1:numCellStart
             cell1 = cellStart + (j-1)*stepCellStart
             cell2 = boundaryCell
-            push!(connect, Connection(cell1, cell2, del1, del2, A, zConnect))           
+            push!(connect, Connection(cell1, cell2, del1, del2, A, zConnect, 0.0))           
         end
     end
     println("Read and assigned special cell-to-cell connections.")

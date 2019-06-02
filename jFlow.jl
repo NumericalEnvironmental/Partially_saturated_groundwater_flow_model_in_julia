@@ -49,6 +49,7 @@ mutable struct Connection
     del2::Float64
     A::Float64                          # interfacial area of the connection
     zConnect::Bool                      # connection is designated as vertically-oriented
+	KMean::Float64 						# mean saturated hydraulic conductivity across connection
 end
 
 
@@ -138,15 +139,23 @@ function FindStressPeriod(t::Float64, stressPeriods::Array{Float64, 1})::Int64
 end
 
 
-function BlendedK(cn::Connection, cell::Array{Cell, 1})::Float64
-    # combo weighted harmonic mean & arithmetic means for heterogeneous cell interfaces
-    if cn.zConnect == false
-        KMean = (cn.del1 + cn.del2)/(cn.del1/cell[cn.cell1].mat.Kh + cn.del2/cell[cn.cell2].mat.Kh)
-    else
-        KMean = (cn.del1 + cn.del2)/(cn.del1/cell[cn.cell1].mat.Kz + cn.del2/cell[cn.cell2].mat.Kz)    
-    end
+function BlendedK(connect::Array{Connection, 1}, cell::Array{Cell, 1})::Array{Connection, 1}
+    # weighted harmonic mean for saturated hydraulic conductivity heterogeneous cell interfaces
+	for cn in connect
+		if cn.zConnect == false
+			cn.KMean = (cn.del1 + cn.del2)/(cn.del1/cell[cn.cell1].mat.Kh + cn.del2/cell[cn.cell2].mat.Kh)
+		else
+			cn.KMean = (cn.del1 + cn.del2)/(cn.del1/cell[cn.cell1].mat.Kz + cn.del2/cell[cn.cell2].mat.Kz)    
+		end
+	end
+    return connect
+end
+
+
+function EffectiveK(cn::Connection, cell::Array{Cell, 1})::Float64
+    # combo weighted harmonic mean & arithmetic means for unsaturated cell interfaces
     krMean = (cn.del1*kr(cell[cn.cell1]) + cn.del2*kr(cell[cn.cell2]))/(cn.del1 + cn.del2)
-    return krMean * KMean
+    return krMean * cn.KMean
 end
 
 
@@ -174,7 +183,7 @@ function Vel(cell::Array{Cell, 1}, connect::Array{Connection, 1})
     yCompCell = zeros(Float64, length(cell))
     zCompCell = zeros(Float64, length(cell))    
     for cn in connect
-        conduct = BlendedK(cn, cell)        # effective hydraulic conductivity
+        conduct = EffectiveK(cn, cell)        # effective hydraulic conductivity
         d = cn.del1+cn.del2
         xComp = (cell[cn.cell2].x - cell[cn.cell1].x)/d^2
         yComp = (cell[cn.cell2].y - cell[cn.cell1].y)/d^2        
@@ -217,7 +226,7 @@ function AssembleMatrix(cell::Array{Cell, 1}, connect::Array{Connection, 1}, par
         diag = Storage(ce)/dt
         bSum = 0.
         for (j, nghbr) in enumerate(ce.neighbors)           # for each neighboring cell
-            conduct = BlendedK(connect[ce.connects[j]], cell) *
+            conduct = EffectiveK(connect[ce.connects[j]], cell) *
                 connect[ce.connects[j]].A / (connect[ce.connects[j]].del1 + connect[ce.connects[j]].del2)
             push!(row_index, i)                                             # left-hand-side matrix
             push!(col_index, nghbr)
@@ -252,6 +261,7 @@ function jFlow(mode::Int64)
     connect = ReadGridConnects()                        # read internal grid connections
     connect = ReadSpecConnects(connect)                 # append unique or boundary connections
     cell = MatchConnects(cell, connect)                 # assign cell connection lists
+	connect = BlendedK(connect, cell) 					# pre-calculated connection saturated K's
     stressPeriods, sourceCells, source = ReadSources()  # tabulate stress periods and source/sink cells
     params = ReadParams()                               # read model properties
     monitor = ReadMonitors()                            # note monitor locations (results tabulated for every time step)
