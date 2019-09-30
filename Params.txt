@@ -1,6 +1,6 @@
-endTime	0.041666667
+endTime	60.0
 dt0	1.00E-10
-dtMax	0.002
-dhMax	0.1
+dtMax	2.0
+dhMax	1.0
 f	2
 c	0.5

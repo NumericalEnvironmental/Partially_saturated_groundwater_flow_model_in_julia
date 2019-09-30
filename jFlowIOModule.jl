@@ -172,18 +172,38 @@ function ReadSources()
 end
 
 
-function WriteCells(cell::Array{Cell, 1}, fileName::String, boundFlag::Int64)
+function ReadDrains()
+    # read drain-designated cells and associated threshold pressures
+    data = readdlm("Drains.txt", '\t', header=true)
+	drainCell = Int64.(data[1][:, 1])
+	drainP = Float64.(data[1][:, 2])
+    println("Read designated drain cells.")  
+    return drainCell, drainP
+end
+
+
+function WriteCells(cell::Array{Cell, 1}, fileName::String, boundFlag::Int64, drainCell::Array{Int64, 1}, drainP::Array{Float64, 1})
     # summarize cell properties to file
     csvfile = open(fileName,"w")
     line_out = "cellIndex" * "," * "x" * "," * "y" * "," * "z" * "," *
-        "vol" * "," * "P" * "," * "S" * "," * "material"
+        "vol" * "," * "P" * "," * "S" * "," * "material" * "," * "drain status"
     println(csvfile, line_out)
+	# drain status
+	drainStatus = zeros(Int64, length(cell)).-1 	# default value is no drain condition assigned
+	for (i, indx) in enumerate(drainCell)
+		if cell[indx].P == drainP[i]
+			drainStatus[indx] = 1
+		else
+			drainStatus[indx] = 0
+		end
+	end	
     for (i, ce) in enumerate(cell)
         if (ce.vol < 1e+10) || boundFlag == 1       # if applicable, exclude boundary elements from summary
             ce.S = Sat(ce)      # update saturation estimate
             line_out = string(ce.index) * "," * string(ce.x) * "," * string(ce.y) * "," * string(ce.z) * "," *
-                string(ce.vol) * "," * string(ce.P) * "," * string(ce.S) * "," * string(ce.mat.index)
-            println(csvfile, line_out)
+                string(ce.vol) * "," * string(ce.P) * "," * string(ce.S) * "," * string(ce.mat.index) * "," *
+				string(drainStatus[i])
+			println(csvfile, line_out)
         end
     end
     close(csvfile)

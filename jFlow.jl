@@ -259,10 +259,11 @@ function jFlow(mode::Int64)
     cell = SortCell(tempCell)                           # use insertion sort approach to sequence cell struct array
     #cell = ReadCellMods(cell, material)                # modify specific cell properties, as specified
     connect = ReadGridConnects()                        # read internal grid connections
-    connect = ReadSpecConnects(connect)                 # append unique or boundary connections
+    #connect = ReadSpecConnects(connect)                 # append unique or boundary connections
     cell = MatchConnects(cell, connect)                 # assign cell connection lists
 	connect = BlendedK(connect, cell) 					# pre-calculated connection saturated K's
     stressPeriods, sourceCells, source = ReadSources()  # tabulate stress periods and source/sink cells
+	drainCell, drainP = ReadDrains() 					# read cells designated as drains
     params = ReadParams()                               # read model properties
     monitor = ReadMonitors()                            # note monitor locations (results tabulated for every time step)
     
@@ -274,10 +275,12 @@ function jFlow(mode::Int64)
     end
     
     # summarize model setup
-    WriteCells(cell, "CellSummary.csv", 1)
+    WriteCells(cell, "CellSummary.csv", 1, drainCell, drainP)
     WriteConnections(connect)
     WriteSources(stressPeriods, sourceCells, source)
-    
+   
+
+   
     if mode != 0            # if mode == 0, do not run model (just print out model setup and exit)
     
         # initialize model
@@ -299,6 +302,11 @@ function jFlow(mode::Int64)
                 
                 # solve system of equations
                 dP = \(A, b)
+                
+                # adjust cells with drains
+				for (i, indx) in enumerate(drainCell)
+					dP[indx] = minimum([dP[indx], drainP[i]-cell[indx].P])
+				end
                 
                 # check convergence (maximum head change); adjust dt if needed
                 if maximum(abs.(dP)) >= params.dhMax
@@ -334,10 +342,10 @@ function jFlow(mode::Int64)
     end
 
     # write output
-    WriteCells(cell, "FinalState.csv", 0)           # write cell output file
-    vx, vy, vz = Vel(cell, connect)                 # compute and write velocity vectors to file
+    WriteCells(cell, "FinalState.csv", 0, drainCell, drainP)	# write cell output file
+    vx, vy, vz = Vel(cell, connect)                 			# compute and write velocity vectors to file
     WriteVectors(cell, vx, vy, vz)
-    WriteTimeSeries(monitor, timeMon, timeSeries)   # write monitor point time series to file
+    WriteTimeSeries(monitor, timeMon, timeSeries)   			# write monitor point time series to file
     
     println("Finished.")
     
