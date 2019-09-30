@@ -11,8 +11,11 @@ The code is distributed across two modules: jFlow.jl, which contains all of the 
 * gridConnect.txt - set up regular, repeating volume element connections that can be propagated, such as within a grid
 * specConnects.txt - set up special volume element connections, such as multiple connections to a single boundary element, wellbore element, etc.
 * Sources.txt - specify source terms, organized by volume element index number, volumetric water flux, and stress period
+* Drains.txt –indices for those cells with a fluid pressure cap (i.e. drain or seepage face), with corresponding threshold pressures
 * Params.txt - specify model run parameters, such as simulation end time, starting and maximum time steps, and maximum change in head per time step
 * Monitor.txt - provide list of volume element index numbers to be included in a time series output file
+
+The input files included herein support a vertical two-dimensional unsaturated flow demonstration featuring a seepage face constraint (https://numericalenvironmental.wordpress.com/2019/09/30/an-enhancement-to-a-saturated-unsaturated-groundwater-model-written-in-julia-language/). Note that the CellMod and specGridConnect features are not used for this problem, so the steps that read the corresponding files in the jFlow.jl code are commented out. These input files are included here nonetheless to communicate their required formats, when needed for other applications.
 
 I'd appreciate hearing back from you if you find the code useful. Questions or comments are welcome at walt.mcnab@gmail.com.
 
