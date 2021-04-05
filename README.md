@@ -4,7 +4,7 @@
 
 April 5, 2021 Update:
 
-jFlow has been modified to (1) work with an externally generated numerical grid/mesh, and (2) accept a linearized relationship between relative permeability and water saturation in the local pressure head on a cell-specific basis, enabling easier simulation of unconfined flow, vertical conduits, and (planned) surface water features. See my blog post [link pending] for more details.
+jFlow has been modified to (1) work with an externally generated numerical grid/mesh, and (2) accept a linearized relationship between relative permeability and water saturation in the local pressure head on a cell-specific basis, enabling easier simulation of unconfined flow, vertical conduits, and (planned) surface water features. See my blog post [https://numericalenvironmental.wordpress.com/2021/04/05/adding-more-functionality-to-a-groundwater-model-written-in-julia/] for more details.
 
 The file set within the repository supports the current example file in my blog. This includes the nodes.csv and connections.csv files, which were created using a cylindrical mesh generator specifically designed to be compatible with jFlow (the mesh generator – a Python script – and its supporting files are included in a subfolder). The “mesh” parameter within the Params.txt input file must be set to “true” to enable reading these files. Otherwise, the default Cells.txt and gridConnections.txt files are used to set up the model grid (older, unrelated setup files for a previous demo problem remain in the folder to illustrate formatting for these).
 
