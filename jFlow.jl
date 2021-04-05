@@ -3,8 +3,8 @@
 # jFlow: a 3-D saturated-unsaturated groundwater flow model
 #
 # (1) Methodology is the integral finite difference method (IFDM)
-# (2) Capillary forces are ignored (i.e., intended for larger spatial scales)
-# (3) Pressure head in a cell is defined at z of node point (i.e., if P = 0, S is typically = 0.5)
+# (2) Pressure head in a cell is defined at z of node point (i.e., if P = 0, S is typically = 0.5)
+# (3) Unsaturated properties defined with Van Genuchten model, or as simple unconfined flow
 #
 ########################################################################################
 
@@ -33,7 +33,7 @@ mutable struct Cell
     y::Float64
     z::Float64                          # node point elevation
     vol::Float64                        # cell volume
-    b::Float64                          # cell vertical thickness
+    b::Float64                          # cell vertical thickness (==0 for VG unsat'd properties; >0 for Sy formulation)
     P::Float64                          # pressure head
     S::Float64                          # saturation
     mat::Material                       # corresponding material
@@ -60,35 +60,55 @@ mutable struct Params
     dhMax::Float64                      # maximum head change in any model cell, per time step
     f::Float64                          # time step multiplier
     c::Float64                          # Crank-Nicolson implicit solution weighting factor
+	mesh::Bool 							# read externally generated mesh (true) or generate from input file (false)
 end
 
 
 include("jFlowIOModule.jl")             # various input and output functions included in separate module
 
 
-### hydraulic parameterization functions
+### hydraulic parameterization functions (Van Genuchten or linear models for unsaturated conditions)
 
 
 function kr(cell::Cell)::Float64
     # relative permeability as a function of water saturation
-    return cell.S^0.5 * (1.0 - (1.0 - cell.S^(1.0/cell.mat.m))^cell.mat.m)^2
+    if cell.b == 0
+        kRel = cell.S^0.5 * (1.0 - (1.0 - cell.S^(1.0/cell.mat.m))^cell.mat.m)^2    # Van Genuchten formulation
+    else
+        kRel = cell.S           # for an unconfined aquifer condition
+    end
+    return kRel
 end
 
 
 function Sat(cell::Cell)::Float64
     # (effective) saturation as a function of pressure head
-    if cell.P < 0.0
-        S = (1. + abs(cell.mat.alpha * cell.P)^cell.mat.N)^(-cell.mat.m)          
+    if cell.b == 0.0
+        # Van Genuchten formulation
+        if cell.P < 0
+            S = (1. + abs(cell.mat.alpha * cell.P)^cell.mat.N)^(-cell.mat.m)
+        else
+            S = 1.0
+        end
     else
-        S = 1.0
+        # unconfined aquifer formulation
+        if cell.P < cell.b/2
+            S = maximum([cell.P/cell.b + 0.5, 0.0])
+        else
+            S = 1.0
+        end
     end
     return S
 end
 
 
 function dSdP(cell::Cell)::Float64
-    # change in effective saturation per change in capillary pressure head
-    dS = -(cell.mat.alpha*abs(cell.P))^cell.mat.N * ((cell.mat.alpha*abs(cell.P))^cell.mat.N + 1.0)^(-cell.mat.m-1.0) * cell.mat.m * cell.mat.N/cell.P
+    # storage term a function of change in effective saturation per change in capillary pressure head
+    if cell.b == 0
+        dS = -(cell.mat.alpha*abs(cell.P))^cell.mat.N * ((cell.mat.alpha*abs(cell.P))^cell.mat.N + 1.0)^(-cell.mat.m-1.0) * cell.mat.m * cell.mat.N/cell.P
+    else
+        dS = 1.0/cell.b
+    end    
     return dS * cell.mat.phi
 end
 
@@ -254,17 +274,22 @@ end
 function jFlow(mode::Int64)
 
     # read and process input files
+    params = ReadParams()                               # read model properties
     material = ReadMaterials()                          # read materials properties
-    tempCell = ReadCells(material)                      # read and assign cells (possibly out of sequence)
-    cell = SortCell(tempCell)                           # use insertion sort approach to sequence cell struct array
-    #cell = ReadCellMods(cell, material)                # modify specific cell properties, as specified
-    connect = ReadGridConnects()                        # read internal grid connections
-    #connect = ReadSpecConnects(connect)                 # append unique or boundary connections
+    if params.mesh == true
+        cell = ReadCells1(material)                     # read cell network from external grid generator
+        connect = ReadGridConnects1()                   # read grid connections from externally-generated file
+    else
+        tempCell = ReadCells2(material)                 # read and assign cells (possibly out of sequence) from raw constraints
+        cell = SortCell(tempCell)                       # use insertion sort approach to sequence cell struct array
+        #cell = ReadCellMods(cell, material)            # modify specific cell properties, as specified
+        connect = ReadGridConnects2()                        # read internal grid connections
+        #connect = ReadSpecConnects(connect)                # append unique or boundary connections
+    end
     cell = MatchConnects(cell, connect)                 # assign cell connection lists
 	connect = BlendedK(connect, cell) 					# pre-calculated connection saturated K's
     stressPeriods, sourceCells, source = ReadSources()  # tabulate stress periods and source/sink cells
 	drainCell, drainP = ReadDrains() 					# read cells designated as drains
-    params = ReadParams()                               # read model properties
     monitor = ReadMonitors()                            # note monitor locations (results tabulated for every time step)
     
     # create container arrays for monitoring points
@@ -278,8 +303,6 @@ function jFlow(mode::Int64)
     WriteCells(cell, "CellSummary.csv", 1, drainCell, drainP)
     WriteConnections(connect)
     WriteSources(stressPeriods, sourceCells, source)
-   
-
    
     if mode != 0            # if mode == 0, do not run model (just print out model setup and exit)
     

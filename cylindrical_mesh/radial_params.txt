@@ -1,0 +1,7 @@
+numLayers 	16
+numCols		100
+wellRadius 	0.1
+wellMaterial 	1
+boundaryRadius 	10000.
+boundaryMaterial 	2
+h0 		20.
